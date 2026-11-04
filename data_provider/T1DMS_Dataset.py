@@ -6,6 +6,34 @@ from torch.utils.data import Dataset, DataLoader, ConcatDataset
 import pandas as pd
 from data_provider.timefeatures import time_features, generate_random_start_dates
 from scipy.ndimage import gaussian_filter1d
+from scipy.signal import lfilter
+from filterpy.kalman import KalmanFilter
+
+
+def kalman_cgm(x, q=None, r=None, burn_in=30):
+    """Standard causal Kalman denoising for CGM.
+    x : 1-D CGM sequence (mg/dL), e.g. shape (865,)
+    q : process noise variance lambda^2 (estimated adaptively if None)
+    r : measurement noise variance sigma^2 (estimated adaptively if None)
+    """
+    x = np.asarray(x, float)
+    if r is None or q is None:
+        r, q = _estimate_qr(x, burn_in)        
+    kf = KalmanFilter(dim_x=1, dim_z=1)
+    kf.x = np.array([[x[0]]])                  # initial state
+    kf.F = np.array([[1.0]])                   # state transition: random walk (gradual glucose drift)
+    kf.H = np.array([[1.0]])                   # observation: measurement = truth + sensor noise
+    kf.P *= 1.0                                # initial error covariance
+    kf.Q = np.array([[q]])                     # process noise variance (how fast true glucose may move)
+    kf.R = np.array([[r]])                     # measurement noise variance (CGM sensor noise level)
+    return kf.batch_filter(x)[0][:, 0, 0]      # filtered state estimates, reshaped to (N,)
+
+def _estimate_qr(x, burn_in=30):
+    seg = x[:burn_in]
+    q = max(np.var(np.diff(seg)), 1e-6)            # lambda^2 ~ variance of adjacent-step glucose change
+    r = max(np.var(seg - seg.mean()) - q, 1e-6)    # sigma^2 ~ total variance - process variance
+    return r, q
+
 
 class T1DMS_Dataset(Dataset):
     def __init__(self, root_dir, seq_length, label_length, pred_length, dataset_type='T1DMS', external_mean=None, external_std=None,
@@ -114,7 +142,8 @@ class T1DMS_Dataset(Dataset):
                         data_reshape = data_blocks.sum(axis=1)
                     data_reshape = np.insert(data_reshape, int(((sim_len-1)/self.sensor_sampling)), data[sim_len-1])
                     if self.gaussian and indicator == 'sensor':
-                        data_reshape = gaussian_filter1d(data_reshape, sigma=1)   
+                        data_reshape = kalman_cgm(data_reshape)
+                        
                     data_matrix[scn, sub, feature, :] = data_reshape
         
         # Compute mean and std for each feature if not provided
@@ -226,5 +255,3 @@ def prepare_T1DMS_data(dataset_str, root_dir, seq_length, label_length, pred_len
         validate_dataset = validate_datasets[0]
         
     return train_dataset, validate_dataset, None
-
-# if __name__ == "__main__":

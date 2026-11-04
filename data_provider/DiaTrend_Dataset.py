@@ -5,8 +5,8 @@ import numpy as np
 import torch
 from datetime import datetime
 from torch.utils.data import Dataset
-from scipy.ndimage import gaussian_filter1d
 from data_provider.timefeatures import time_features
+from data_provider.T1DMS_Dataset import kalman_cgm
 warnings.filterwarnings(action='ignore')
 
 #####################################
@@ -61,7 +61,7 @@ class DiaTrend_Dataset(Dataset):
             insulin = (raw_df['Basal']*6000 + raw_df['Bolus']*6000).to_numpy(dtype=np.float32)
 
         if self.gaussian:
-            glucose = gaussian_filter1d(glucose, sigma=1)
+            glucose = kalman_cgm(glucose)
 
         # default order: Carbs, Insulin, Glucose
         if self.mode == "ggg":

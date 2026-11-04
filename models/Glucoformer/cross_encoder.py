@@ -61,12 +61,18 @@ class scale_block(nn.Module):
         self.encode_layers = nn.ModuleList()
         
         for i in range(depth):
-            if use_etsa:
-                self.encode_layers.append(ETSA_Layer(attn1, attn2, seg_num, factor, d_model, n_heads, \
-                                                            d_ff, dropout))
-            else: 
-                self.encode_layers.append(TwoStageAttentionLayer(attn2, attn2, seg_num, factor, d_model, n_heads, \
-                                                            d_ff, dropout))
+            if use_etsa is True:
+                self.encode_layers.append(ETSA_Layer(attn1, attn2, seg_num, factor, d_model, n_heads,
+                                                    d_ff, dropout))
+            elif use_etsa == "without_Linearattn":
+                self.encode_layers.append(ETSA_Layer(attn2, attn2, seg_num, factor, d_model, n_heads,
+                                                    d_ff, dropout))
+            elif use_etsa == "without_context":
+                self.encode_layers.append(TwoStageAttentionLayer(attn1, attn2, seg_num, factor, d_model, n_heads,
+                                                                d_ff, dropout))
+            elif use_etsa is False:
+                self.encode_layers.append(TwoStageAttentionLayer(attn2, attn2, seg_num, factor, d_model, n_heads,
+                                                                d_ff, dropout))
 
         # if (win_size > 1):
         #     self.conv = ConvLayer(d_model)

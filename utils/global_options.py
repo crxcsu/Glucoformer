@@ -11,7 +11,7 @@ class global_options:
     def _initial(self):
         # ========== Basic Task Configuration ==========
         self.parser.add_argument('--model_name', type=str, default='Glucoformer', help='model name')
-        self.parser.add_argument('--dataset', type=str, default='DiaTrend', help='dataset name, eg., T1DMS, OhioT1DM, DiaTrend, Shanghai')
+        self.parser.add_argument('--dataset', type=str, default='T1DMS', help='dataset name, eg., T1DMS, OhioT1DM, DiaTrend, Shanghai')
         self.parser.add_argument('--experiment_dir', type=str, default=None, help='directory to save experiment results, including model checkpoints and logs')
         self.parser.add_argument('--repeat_times', type=int, default=10, help='number of times to repeat the experiment')
         self.parser.add_argument('--PH', type=list, default=[30, 60, 90, 120], help='prediction horizons (minutes)')

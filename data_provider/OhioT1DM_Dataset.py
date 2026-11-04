@@ -5,8 +5,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 from data_provider.timefeatures import time_features
-from scipy.ndimage import gaussian_filter1d
-
+from data_provider.T1DMS_Dataset import kalman_cgm
 
 class OhioT1DM_Dataset(Dataset):
     """ 
@@ -96,7 +95,9 @@ class OhioT1DM_Dataset(Dataset):
         injection = basal * 500 + bolus * 6000 #Aligned with 5-min aggregation, Unit: pmol/5min
 
         if self.gaussian:
-            glucose = gaussian_filter1d(glucose, sigma=1)
+            # glucose = gaussian_filter1d(glucose, sigma=1)
+            # glucose = causal_gaussian_filter(glucose, sigma=1)
+            glucose = kalman_cgm(glucose)
 
         # if self.mode == "ggg":
         #     return np.array([
@@ -333,6 +334,126 @@ def prepare_Ohio_data(root_dir,
     return global_train_set, global_validate_set, global_test_set, test_patients, scalar
 
 
+def prepare_Ohio_LOSO(root_dir,
+                      seq_length,
+                      label_length,
+                      pred_length,
+                      use_delta=False,
+                      gaussian=False,
+                      Experiment_mode=None,
+                      n_val=2,
+                      patient_ring=None):
+    """
+    Generate 12 LOSO folds, return list[dict].
+    Each fold contains:
+        fold / test_patient / train_patients / val_patients /
+        train_set / val_set / test_set / scaler
+
+    Cyclic round-robin rule:
+        For fold i:
+            test = ring[i]
+            pool = next 11 patients on the ring after the test patient (cyclic order)
+            val  = pool[:n_val]      # first n_val patients adjacent to test, sliding per fold
+            train = pool[n_val:]     # remaining patients
+
+    Normalization statistics are fitted ONLY on training patients of this fold
+    to avoid validation/test leakage.
+
+    Usage:
+        folds = prepare_Ohio_LOSO(root_dir, seq_length=..., label_length=..., pred_length=...)
+        for f in folds:
+            model = train(f["train_set"], val_set=f["val_set"])  # select best epoch using val
+            rmse  = evaluate(model, f["test_set"])               # evaluate on held-out patient
+    """
+    import os
+    import pandas as pd
+    import torch
+
+    OHIO_PROCESSED_DIR = "Glucose_Data/OhioT1DM_Dataset/OhioT1DM_processed_dataset"
+    ring = list(patient_ring) if patient_ring else [
+        "540", "544", "559", "567", "570", "575",
+        "584", "591", "588", "552", "563", "596",
+    ]
+    N = len(ring)
+    if n_val < 1 or n_val >= N - 1:
+        raise ValueError(f"n_val must be between 1 and {N - 2}, inclusive (got {n_val})")
+
+    folds = []
+    for i in range(N):
+        test_p = ring[i]
+        pool = [ring[(i + 1 + j) % N] for j in range(N - 1)] 
+        val_p = pool[:n_val]
+        train_p = pool[n_val:]
+
+        # Only use training to fit the normalized statistics (for leakage prevention)
+        all_train_df = pd.concat(
+            [pd.read_csv(os.path.join(root_dir, OHIO_PROCESSED_DIR, f"{p}_{sp}.csv"))
+             for p in train_p for sp in ("train", "test")],
+            axis=0,
+        )
+        scaler = OhioT1DM_Dataset(
+            all_train_df, seq_length, label_length, pred_length,
+            use_delta=use_delta, gaussian=gaussian, Experiment_mode=Experiment_mode,
+        )
+
+        sets = {}
+        for key, plist in (("train_set", train_p),
+                           ("val_set", val_p),
+                           ("test_set", [test_p])):
+            sets[key] = torch.utils.data.ConcatDataset([
+                OhioT1DM_Dataset(
+                    raw_df=pd.read_csv(os.path.join(root_dir, OHIO_PROCESSED_DIR, f"{p}_{sp}.csv")),
+                    seq_length=seq_length, label_length=label_length, pred_length=pred_length,
+                    use_delta=use_delta, gaussian=gaussian,
+                    external_mean=scaler.mean, external_std=scaler.std,
+                    Experiment_mode=Experiment_mode,
+                )
+                for p in plist for sp in ("train", "test")
+            ])
+
+        folds.append({
+            "fold": i,
+            "test_patient": test_p,
+            "train_patients": train_p,
+            "val_patients": val_p,
+            "train_set": sets["train_set"],
+            "val_set": sets["val_set"],
+            "test_set": sets["test_set"],
+            "scaler": scaler,
+        })
+    return folds
 
 
+def prepare_Ohio_all_subjects(root_dir,
+                              seq_length,
+                              label_length,
+                              pred_length,
+                              use_delta=False,
+                              gaussian=False,
+                              Experiment_mode=None):
 
+    ohio_processed_dataset_dir = "Glucose_Data/OhioT1DM_Dataset/OhioT1DM_processed_dataset"
+    all_patients = ["540", "544", "559", "567", "570", "575",
+                    "584", "591", "588", "552", "563", "596"]
+
+    all_data = []
+    for p in all_patients:
+        for sp in ("train", "test"):
+            all_data.append(pd.read_csv(
+                os.path.join(root_dir, ohio_processed_dataset_dir, "{}_{}.csv".format(p, sp))))
+    global_df = pd.concat(all_data, axis=0)
+    scalar = OhioT1DM_Dataset(global_df, seq_length, label_length, pred_length,
+                              use_delta=use_delta, gaussian=gaussian, Experiment_mode=Experiment_mode)
+
+    sub_datasets = []
+    for p in all_patients:
+        for sp in ("train", "test"):
+            sub_datasets.append(OhioT1DM_Dataset(
+                raw_df=pd.read_csv(
+                    os.path.join(root_dir, ohio_processed_dataset_dir, "{}_{}.csv".format(p, sp))),
+                seq_length=seq_length, label_length=label_length, pred_length=pred_length,
+                use_delta=use_delta, gaussian=gaussian,
+                external_mean=scalar.mean, external_std=scalar.std,
+                Experiment_mode=Experiment_mode))
+    global_set = torch.utils.data.ConcatDataset(sub_datasets)
+    return global_set, all_patients, scalar
