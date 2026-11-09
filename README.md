@@ -1,4 +1,4 @@
-# Glucoformer: Multimodal Cross-subject Glucose Forecasting with Long-term Prediction Capability
+# Glucoformer: Long-horizon Glucose Prediction from Multimodal Signals across Type 1 Diabetes Participants
 
 <img src="figures/Fig. 1 Overview of Glucoformer.png" alt="Overview of Glucoformer" />
 
