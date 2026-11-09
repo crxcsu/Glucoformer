@@ -5,8 +5,6 @@ import torch
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 import pandas as pd
 from data_provider.timefeatures import time_features, generate_random_start_dates
-from scipy.ndimage import gaussian_filter1d
-from scipy.signal import lfilter
 from filterpy.kalman import KalmanFilter
 
 
