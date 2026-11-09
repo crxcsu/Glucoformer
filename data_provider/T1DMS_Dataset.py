@@ -30,8 +30,8 @@ def kalman_cgm(x, q=None, r=None, burn_in=30):
 
 def _estimate_qr(x, burn_in=30):
     seg = x[:burn_in]
-    q = max(np.var(np.diff(seg)), 1e-6)            # lambda^2 ~ variance of adjacent-step glucose change
-    r = max(np.var(seg - seg.mean()) - q, 1e-6)    # sigma^2 ~ total variance - process variance
+    q = max(np.var(np.diff(seg)), 1e-6)            
+    r = max(np.var(seg - seg.mean()) - q, 1e-6)    
     return r, q
 
 
