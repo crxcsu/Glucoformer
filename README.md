@@ -28,9 +28,6 @@
 - **Lightweight Decoder Design:**  
   The original Two-Stage Attention (TSA) layer in the decoder is removed to reduce redundant computation. This simplified decoder improves computational efficiency while further enhancing predictive performance.
 
-- **Transfer Learning for Cross-subject Generalization:**  
-  Glucoformer adopts a subject-level transfer learning strategy based on pre-training and fine-tuning. The model is first pre-trained on the simulated T1DMS dataset to learn general glucose regulation patterns, and then fine-tuned on the OhioT1DM dataset to adapt to real-world glucose dynamics. This enables robust prediction for unseen subjects beyond conventional personalized forecasting settings.
-
 - **Comprehensive Evaluation and Analysis:**  
   Glucoformer is extensively evaluated on three datasets: T1DMS, OhioT1DM, and DiaTrend. Experiments include direct comparisons with established and SOTA BG forecasting models (GRU, LSTM, Transformer, Informer, DLinear, TimeXer, PatchTST, and Crossformer), along with long-horizon forecasting analysis, clinical accuracy and safety evaluation, ablation studies, interpretability analysis, and computational complexity profiling. Additionally, zero-shot transfer evaluation on the external DiaTrend dataset further validates its cross-domain generalization capability.
 
