@@ -168,10 +168,6 @@ def set_model_parameters(config):
         model = GRU(input_size=config.data_dim, hidden_size=config.d_model, num_layers=config.e_layers,
                     forecast_window=pred_len, output_size=config.c_out).to(device)
 
-    elif config.model_name == 'SVR':
-        from models.SVR.svr_model import SVRModel
-        model = SVRModel(forecast_window=pred_len).to(device)
-
     elif config.model_name == 'ARIMA':
         from models.ARIMA.arima_model import ARIMAModel
         model = ARIMAModel(forecast_window=pred_len).to(device)
